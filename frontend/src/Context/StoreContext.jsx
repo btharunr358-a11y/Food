@@ -23,7 +23,7 @@ const StoreContextProvider = (props) => {
         const token = localStorage.getItem("token");
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
-          config.headers.token = token; // For backward compatibility
+          config.headers.token = token;
         }
         return config;
       },
@@ -97,7 +97,7 @@ const StoreContextProvider = (props) => {
     return totalAmount;
   };
 
-  // Fetch food items - FIXED: Handle both public and authenticated access
+  // Fetch food items
   const fetchFoodList = async () => {
     try {
       console.log("Fetching food list...");
@@ -112,30 +112,8 @@ const StoreContextProvider = (props) => {
       }
     } catch (err) {
       console.error("Error fetching food list:", err);
-      
-      // If unauthorized, try without authentication or use fallback
-      if (err.response?.status === 401) {
-        console.log("Endpoint requires authentication, will retry after login");
-        // Don't set food_list here - it will be fetched after login
-      } else {
-        // For other errors, set empty array
-        setFoodList([]);
-      }
+      setFoodList([]);
     }
-  };
-
-  // Alternative: Fetch food list with token (for authenticated users)
-  const fetchAuthenticatedFoodList = async () => {
-    try {
-      const response = await axios.get(url + "/api/food/list");
-      if (response.data && response.data.data) {
-        setFoodList(response.data.data);
-        return true;
-      }
-    } catch (err) {
-      console.error("Error fetching authenticated food list:", err);
-    }
-    return false;
   };
 
   const fetchMenuList = async () => {
@@ -147,8 +125,6 @@ const StoreContextProvider = (props) => {
       }
     } catch (err) {
       console.error("Error fetching menu list:", err);
-      
-      // Fallback: create menu from food categories
       const categories = food_list.length > 0 
         ? [...new Set(food_list.map((item) => item.category))].filter(Boolean)
         : ["All"];
@@ -181,37 +157,72 @@ const StoreContextProvider = (props) => {
     }
   };
 
-  // Validate token
+  // Parse JWT token to extract user data
+  const parseJwt = (token) => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      console.error("Error parsing JWT token:", e);
+      return null;
+    }
+  };
+
+  // Enhanced token validation with proper user data extraction
   const validateToken = async (userToken) => {
     if (!userToken) return false;
     
     try {
-      // Try user endpoint first
-      const response = await axios.get(url + "/api/user/me");
+      // First, parse the token to get basic user info
+      const tokenData = parseJwt(userToken);
+      console.log("Token data:", tokenData);
       
-      if (response.data.success) {
-        setUser(response.data.user);
-        console.log("Token validated successfully");
-        return true;
+      if (!tokenData) {
+        console.error("Invalid token format");
+        return false;
       }
-      return false;
-    } catch (error) {
-      console.error("Token validation failed:", error);
-      
-      // If user endpoint fails, try cart endpoint as fallback validation
-      if (error.response?.status === 404 || error.response?.status === 401) {
-        console.log("Trying alternative token validation...");
-        try {
-          const cartResponse = await axios.post(url + "/api/cart/get", {});
-          // If we get here without error, token is valid
-          setUser({ name: "User", email: "user@example.com" });
-          return true;
-        } catch (cartError) {
-          console.error("Alternative token validation failed:", cartError);
-          return false;
+
+      let userData = {
+        id: tokenData.id || tokenData.userId || tokenData._id || `user_${Date.now()}`,
+        name: tokenData.name || "User",
+        email: tokenData.email || "user@example.com"
+      };
+
+      // Try to get additional user data from backend if available
+      try {
+        const response = await axios.get(url + "/api/user/me");
+        if (response.data.success && response.data.user) {
+          // Merge backend user data with token data
+          const backendUser = response.data.user;
+          userData = { 
+            ...userData, 
+            ...backendUser,
+            // Ensure we use id field consistently
+            id: backendUser.id || backendUser._id || userData.id
+          };
+          console.log("User data from backend:", userData);
         }
+      } catch (backendError) {
+        console.log("Backend user endpoint not available, using token data only");
+      }
+
+      // Validate token by making a simple authenticated request
+      try {
+        await axios.post(url + "/api/cart/get", {});
+        console.log("Token validated successfully");
+        setUser(userData);
+        return true;
+      } catch (validationError) {
+        console.error("Token validation failed:", validationError);
+        return false;
       }
       
+    } catch (error) {
+      console.error("Token validation error:", error);
       return false;
     }
   };
@@ -226,7 +237,7 @@ const StoreContextProvider = (props) => {
       const isValid = await validateToken(newToken);
       if (isValid) {
         await loadCartData();
-        await fetchAuthenticatedFoodList(); // Refresh food list with valid token
+        await fetchFoodList();
       } else {
         clearInvalidToken();
       }
@@ -240,7 +251,7 @@ const StoreContextProvider = (props) => {
     setLoading(true);
     
     try {
-      // First, try to load food list without authentication
+      // Load food list first
       await fetchFoodList();
       await fetchMenuList();
       
@@ -282,7 +293,7 @@ const StoreContextProvider = (props) => {
     user,
     setUser,
     clearInvalidToken,
-    fetchFoodList: fetchAuthenticatedFoodList,
+    fetchFoodList,
     loading,
     initializeApp,
   };

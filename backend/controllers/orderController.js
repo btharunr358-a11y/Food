@@ -1,7 +1,7 @@
 // orderController.js - Complete fixed version
 import Order from '../models/orderModel.js';
 import Razorpay from 'razorpay';
-
+import crypto from 'crypto';
 // Create Razorpay order
 export const createRazorpayOrder = async (req, res) => {
     try {
@@ -55,35 +55,143 @@ export const createRazorpayOrder = async (req, res) => {
 
 // Verify Razorpay payment
 export const verifyRazorpayPayment = async (req, res) => {
-    try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  try {
+    console.log("=== PAYMENT VERIFICATION START ===");
+    console.log("Payment verification request body:", JSON.stringify(req.body, null, 2));
 
-        // Validate required fields
-        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required payment details'
-            });
-        }
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      userId,
+      address,
+      items,
+      amount,
+    } = req.body;
 
-        // In a real application, you would verify the signature here
-        // For now, we'll assume the payment is successful
-        console.log('Payment verification data:', req.body);
-
-        res.json({
-            success: true,
-            message: 'Payment verified successfully',
-            orderId: razorpay_order_id,
-            paymentId: razorpay_payment_id
-        });
-    } catch (error) {
-        console.error('Payment verification error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Payment verification failed',
-            error: error.message
-        });
+    // Detailed validation with specific error messages
+    if (!razorpay_order_id) {
+      console.log("❌ Missing razorpay_order_id");
+      return res.status(400).json({
+        success: false,
+        message: "Missing razorpay_order_id",
+      });
     }
+
+    if (!razorpay_payment_id) {
+      console.log("❌ Missing razorpay_payment_id");
+      return res.status(400).json({
+        success: false,
+        message: "Missing razorpay_payment_id",
+      });
+    }
+
+    if (!razorpay_signature) {
+      console.log("❌ Missing razorpay_signature");
+      return res.status(400).json({
+        success: false,
+        message: "Missing razorpay_signature",
+      });
+    }
+
+    if (!userId) {
+      console.log("❌ Missing userId");
+      return res.status(400).json({
+        success: false,
+        message: "Missing userId",
+      });
+    }
+
+    if (!address) {
+      console.log("❌ Missing address");
+      return res.status(400).json({
+        success: false,
+        message: "Missing address",
+      });
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      console.log("❌ Missing or invalid items");
+      return res.status(400).json({
+        success: false,
+        message: "Missing or invalid items",
+      });
+    }
+
+    if (!amount || amount === 0) {
+      console.log("❌ Missing or invalid amount");
+      return res.status(400).json({
+        success: false,
+        message: "Missing or invalid amount",
+      });
+    }
+
+    console.log("✅ All required fields present");
+
+    // Verify payment signature
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(sign.toString())
+      .digest("hex");
+
+    console.log("Signature verification:", {
+      received: razorpay_signature,
+      expected: expectedSign,
+      match: razorpay_signature === expectedSign
+    });
+
+    if (razorpay_signature !== expectedSign) {
+      console.log("❌ Signature mismatch");
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature",
+      });
+    }
+
+    console.log("✅ Signature verified successfully");
+
+    // Transform items to ensure they have required fields
+    const transformedItems = items.map(item => ({
+      name: item.name || 'Unknown Item',
+      price: item.price || 0,
+      quantity: item.quantity || 1,
+      image: item.image || '',
+      _id: item._id || `temp_${Date.now()}_${Math.random()}`
+    }));
+
+    // Save order
+    const newOrder = new Order({
+      userId,
+      address,
+      items: transformedItems,
+      amount,
+      paymentMethod: "razorpay",
+      payment: true,
+      status: "Food Processing",
+      razorpay_order_id,
+      razorpay_payment_id,
+    });
+
+    console.log("Saving order to database...");
+    const savedOrder = await newOrder.save();
+    console.log("✅ Order saved successfully:", savedOrder._id);
+
+    res.json({
+      success: true,
+      message: "Payment verified and order saved successfully",
+      order: savedOrder,
+    });
+
+    console.log("=== PAYMENT VERIFICATION COMPLETE ===");
+  } catch (error) {
+    console.error("❌ Payment verification error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Payment verification failed",
+      error: error.message,
+    });
+  }
 };
 
 // Place COD order - UPDATED to use authenticated user

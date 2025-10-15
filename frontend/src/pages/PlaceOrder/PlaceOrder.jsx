@@ -89,17 +89,17 @@ const PlaceOrder = () => {
       items: orderItems,
       amount: getTotalCartAmount() + deliveryCharge,
       paymentMethod: payment,
-      userId: user?._id // Include userId for order creation
+      userId: user?.id
     };
 
     try {
       if (payment === "razorpay") {
-        // Razorpay payment flow - Send only amount and currency
+        // Razorpay payment flow
         console.log('Creating Razorpay order with data:', razorpayOrderData);
         
         const orderResponse = await axios.post(
           url + "/api/order/razorpay-create-order",
-          razorpayOrderData, // Send only amount and currency
+          razorpayOrderData,
           { headers: { token } }
         );
         
@@ -124,30 +124,64 @@ const PlaceOrder = () => {
             order_id: order.id,
             handler: async function (response) {
               try {
-                console.log('Payment successful:', response);
+                console.log('Payment successful response:', response);
                 
+                const verificationData = {
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  userId: user?.id,
+                  address: data,
+                  items: orderItems,
+                  amount: getTotalCartAmount() + deliveryCharge,
+                };
+
+                console.log('Sending verification data:', JSON.stringify(verificationData, null, 2));
+                console.log('Token being sent:', token);
+                console.log('Current user:', user);
+                console.log('User ID:', user?.id);
+                console.log('Order items count:', orderItems.length);
+
                 // Verify payment and create order
                 const verificationResponse = await axios.post(
-                  url + "/api/order/razorpay-verify-payment",
-                  {
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_order_id: response.razorpay_order_id,
-                    razorpay_signature: response.razorpay_signature,
-                    orderData: fullOrderData, // Send full order data here
-                  },
-                  { headers: { token } }
+                  url + "/api/order/razorpay-verify-payment", 
+                  verificationData, 
+                  { 
+                    headers: { 
+                      token,
+                      'Content-Type': 'application/json'
+                    } 
+                  }
                 );
+
+                console.log('Payment verification response:', verificationResponse.data);
 
                 if (verificationResponse.data.success) {
                   navigate("/myorders");
                   toast.success("Order placed successfully!");
                   setCartItems({});
                 } else {
-                  toast.error("Payment verification failed");
+                  toast.error(verificationResponse.data.message || "Payment verification failed");
                 }
               } catch (error) {
                 console.error("Payment verification error:", error);
-                toast.error("Payment verification failed");
+                
+                // Enhanced error logging
+                if (error.response) {
+                  console.log('Error response data:', error.response.data);
+                  console.log('Error response status:', error.response.status);
+                  
+                  if (error.response.data?.message) {
+                    toast.error(`Payment verification failed: ${error.response.data.message}`);
+                  } else {
+                    toast.error("Payment verification failed. Please contact support.");
+                  }
+                } else if (error.request) {
+                  console.log('No response received:', error.request);
+                  toast.error("Network error. Please check your connection.");
+                } else {
+                  toast.error("An unexpected error occurred.");
+                }
               }
             },
             prefill: {
@@ -196,7 +230,6 @@ const PlaceOrder = () => {
     } catch (error) {
       console.error("Order placement error:", error);
       
-      // Enhanced error handling
       if (error.response) {
         console.log('Error response data:', error.response.data);
         console.log('Error response status:', error.response.status);
@@ -206,7 +239,6 @@ const PlaceOrder = () => {
           navigate('/login');
         } else if (error.response.status === 404) {
           toast.error("Service temporarily unavailable. Please try again later.");
-          console.error("Endpoint not found. Check backend routes.");
         } else if (error.response.data?.message) {
           toast.error(error.response.data.message);
         } else {
@@ -223,7 +255,7 @@ const PlaceOrder = () => {
     }
   }
 
-  // Improved Razorpay loader
+  // Razorpay loader
   useEffect(() => {
     const loadRazorpay = () => {
       return new Promise((resolve) => {
@@ -247,7 +279,6 @@ const PlaceOrder = () => {
       });
     };
 
-    // Load Razorpay when component mounts if user might use it
     if (payment === "razorpay" || user) {
       loadRazorpay();
     }

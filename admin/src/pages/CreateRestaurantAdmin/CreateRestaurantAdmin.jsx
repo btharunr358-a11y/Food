@@ -1,115 +1,101 @@
 import React, { useState, useEffect } from 'react';
-import '../Add/Add.css';
+import '../List/List.css';
+
+
+import { url } from "../../assets/assets";
+
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { url } from '../../assets/assets';
 
-const CreateRestaurantAdmin = () => {
-    const [restaurants, setRestaurants] = useState([]);
-    const [data, setData] = useState({
-        name: "",
-        email: "",
-        password: "",
-        restaurantId: ""
-    });
-    const [loading, setLoading] = useState(false);
+const ListRestaurant = () => {
+    const [list, setList] = useState([]);
 
-    const fetchRestaurants = async () => {
+    const fetchList = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await axios.get(`${url}/api/restaurant/list`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.success) {
-                setRestaurants(response.data.data);
-                if (response.data.data.length > 0) {
-                    setData(prevData => ({ ...prevData, restaurantId: response.data.data[0]._id }));
-                }
+            if (!token) {
+                toast.error("Please login first");
+                window.location.href = '/login';
+                return;
             }
-        } catch (error) {
-            toast.error("Error fetching restaurants");
-        }
-    };
 
-    const onSubmitHandler = async (event) => {
-        event.preventDefault();
-        setLoading(true);
-        
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${url}/api/user/create-restaurant-admin`, data, {
-                headers: { Authorization: `Bearer ${token}` }
+            const response = await axios.get(`${url}/api/restaurant/list`, {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
             
             if (response.data.success) {
-                toast.success("Restaurant admin created successfully");
-                setData({
-                    name: "",
-                    email: "",
-                    password: "",
-                    restaurantId: ""
-                });
-            } else {
-                toast.error(response.data.message);
+                setList(response.data.data);
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || "Error creating restaurant admin");
-        } finally {
-            setLoading(false);
+            console.error("Error fetching restaurants:", error);
+            if (error.response?.status === 401) {
+                toast.error("Session expired. Please login again.");
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+            } else {
+                toast.error("Error fetching restaurants");
+            }
         }
     };
 
-    const onChangeHandler = (event) => {
-        const name = event.target.name;
-        const value = event.target.value;
-        setData(data => ({ ...data, [name]: value }));
+    const removeRestaurant = async (restaurantId) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(`${url}/api/restaurant/remove`, { id: restaurantId }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (response.data.success) {
+                toast.success("Restaurant removed successfully");
+                fetchList();
+            } else {
+                toast.error("Error removing restaurant");
+            }
+        } catch (error) {
+            console.error("Error removing restaurant:", error);
+            if (error.response?.status === 401) {
+                toast.error("Session expired. Please login again.");
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+            } else {
+                toast.error("Error removing restaurant");
+            }
+        }
     };
 
     useEffect(() => {
-        fetchRestaurants();
+        fetchList();
     }, []);
 
     return (
-        <div className='add'>
-            <form className='flex-col' onSubmit={onSubmitHandler}>
-                <h3>Create Restaurant Admin</h3>
-                
-                <div className='add-product-name flex-col'>
-                    <p>Name</p>
-                    <input name='name' onChange={onChangeHandler} value={data.name} type="text" placeholder='Type here' required />
-                </div>
-                
-                <div className='add-product-description flex-col'>
-                    <p>Email</p>
-                    <input name='email' onChange={onChangeHandler} value={data.email} type="email" placeholder='Type here' required />
-                </div>
-                
-                <div className='add-product-name flex-col'>
-                    <p>Password</p>
-                    <input name='password' onChange={onChangeHandler} value={data.password} type="password" placeholder='Type here' required />
-                </div>
-                
-                <div className='add-restaurant flex-col'>
-                    <p>Select Restaurant</p>
-                    <select name='restaurantId' onChange={onChangeHandler} value={data.restaurantId} required>
-                        {restaurants.length > 0 ? (
-                            restaurants.map(restaurant => (
-                                <option key={restaurant._id} value={restaurant._id}>
-                                    {restaurant.name}
-                                </option>
-                            ))
-                        ) : (
-                            <option value="">No restaurants available</option>
-                        )}
-                    </select>
-                </div>
-                
-                <button type='submit' className='add-btn' disabled={loading}>
-                    {loading ? 'CREATING...' : 'CREATE ADMIN'}
-                </button>
-            </form>
+        <div className='list-restaurant'>
+            <h2>All Restaurants</h2>
+            <div className="list-restaurant-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Image</th>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {list.map((restaurant, index) => (
+                            <tr key={index}>
+                                <td><img src={`${url}/images/${restaurant.image}`} alt={restaurant.name} /></td>
+                                <td>{restaurant.name}</td>
+                                <td>{restaurant.address}</td>
+                                <td>
+                                    <button onClick={() => removeRestaurant(restaurant._id)} className='remove-btn'>Remove</button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };
 
-export default CreateRestaurantAdmin;
+export default ListRestaurant;

@@ -4,7 +4,7 @@ import FoodItem from "../FoodItem/FoodItem";
 import { StoreContext } from "../../Context/StoreContext";
 import "./FoodDisplayFilters.css";
 
-const FoodDisplay = () => {
+const FoodDisplay = ({ searchQuery = "" }) => {  // ✅ receive searchQuery from props
   const { food_list, menu_list } = useContext(StoreContext);
 
   // Local states for filters
@@ -21,14 +21,18 @@ const FoodDisplay = () => {
     setRestaurants(uniqueRestaurants);
   }, [food_list]);
 
-  // Filter + Sort
+  // ✅ Apply filters and search
   const filteredAndSortedFoodList = [...food_list]
     .filter((item) => {
       const isCategoryMatch = category === "All" || category === item.category;
       const isRestaurantMatch =
         restaurantFilter === "All" ||
         restaurantFilter === item.restaurantId?.name;
-      return isCategoryMatch && isRestaurantMatch;
+      const isSearchMatch =
+        searchQuery.trim() === "" ||
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchQuery.toLowerCase());
+      return isCategoryMatch && isRestaurantMatch && isSearchMatch;
     })
     .sort((a, b) => {
       switch (sortOption) {
@@ -97,16 +101,20 @@ const FoodDisplay = () => {
       {/* Food list */}
       <h2>Top dishes near you</h2>
       <div className="food-display-list">
-        {filteredAndSortedFoodList.map((item) => (
-          <FoodItem
-            key={item._id}
-            image={item.image}
-            name={item.name}
-            desc={item.description}
-            price={item.price}
-            id={item._id}
-          />
-        ))}
+        {filteredAndSortedFoodList.length > 0 ? (
+          filteredAndSortedFoodList.map((item) => (
+            <FoodItem
+              key={item._id}
+              image={item.image}
+              name={item.name}
+              desc={item.description}
+              price={item.price}
+              id={item._id}
+            />
+          ))
+        ) : (
+          <p className="no-results">No food items found for your search.</p>
+        )}
       </div>
     </div>
   );

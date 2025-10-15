@@ -1,4 +1,4 @@
-/* Navbar.css - Swiggy Theme */
+/* Navbar container */
 .navbar {
     display: flex;
     justify-content: space-between;
@@ -13,39 +13,39 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Logo and Admin Panel text */
+.navbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .navbar .logo {
-    width: max(12%, 90px);
-    height: auto;
-    filter: brightness(0) invert(1);
+    width: 95.31px;
+    height: 27.97px;
+    /* Removed filter to show logo in original colors */
     transition: transform 0.3s ease;
+    object-fit: contain;
 }
 
 .navbar .logo:hover {
     transform: scale(1.05);
 }
 
+.admin-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+}
+
+/* Navbar right side */
 .navbar-right {
     display: flex;
     align-items: center;
     gap: 2rem;
 }
 
-.navbar .profile {
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    object-fit: cover;
-}
-
-.navbar .profile:hover {
-    transform: scale(1.15);
-    border-color: rgba(255, 255, 255, 0.5);
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-}
-
+/* Logout button styling */
 .logout-btn {
     padding: 0.75rem 1.5rem;
     background: rgba(255, 255, 255, 0.2);
@@ -82,4 +82,19 @@
 
 .logout-btn:active {
     transform: translateY(-1px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .navbar .logo {
+        width: 75px;
+        height: auto;
+    }
+    .admin-text {
+        font-size: 16px;
+    }
+    .logout-btn {
+        padding: 0.5rem 1rem;
+        font-size: 14px;
+    }
 }
